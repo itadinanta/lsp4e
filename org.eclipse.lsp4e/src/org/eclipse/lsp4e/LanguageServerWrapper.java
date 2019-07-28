@@ -146,6 +146,8 @@ public class LanguageServerWrapper {
 	protected final Set<@NonNull IProject> allWatchedProjects;
 	@NonNull
 	protected Map<@NonNull IPath, @NonNull DocumentContentSynchronizer> connectedDocuments;
+	@Nullable
+	protected final IPath initialPath;
 
 	protected StreamConnectionProvider lspStreamProvider;
 	private Future<?> launcherFuture;
@@ -159,8 +161,10 @@ public class LanguageServerWrapper {
 	private @NonNull Map<@NonNull String, @NonNull Runnable> dynamicRegistrations = new HashMap<>();
 	private boolean initiallySupportsWorkspaceFolders = false;
 
-	public LanguageServerWrapper(@Nullable IProject project, @NonNull LanguageServerDefinition serverDefinition) {
+	public LanguageServerWrapper(@Nullable IProject project, @NonNull LanguageServerDefinition serverDefinition,
+			@Nullable IPath initialPath) {
 		this.initialProject = project;
+		this.initialPath = initialPath;
 		this.allWatchedProjects = new HashSet<>();
 		this.serverDefinition = serverDefinition;
 		this.connectedDocuments = new HashMap<>();
@@ -206,7 +210,16 @@ public class LanguageServerWrapper {
 				initParams.setRootUri(rootURI.toString());
 				initParams.setRootPath(rootURI.getPath());
 			} else {
-				initParams.setRootUri(LSPEclipseUtils.toUri(new File("/")).toString()); //$NON-NLS-1$
+				final IPath initialPath = this.initialPath;
+				if (initialPath != null) {
+					File projectDirectory = initialPath.toFile();
+					if (projectDirectory.isFile()) {
+						projectDirectory = projectDirectory.getParentFile();
+					}
+					initParams.setRootUri(LSPEclipseUtils.toUri(projectDirectory).toString());
+				} else {
+					initParams.setRootUri(LSPEclipseUtils.toUri(new File("/")).toString()); //$NON-NLS-1$
+				}
 			}
 			Launcher<? extends LanguageServer> launcher = Launcher.createLauncher(client,
 					serverDefinition.getServerInterface(), this.lspStreamProvider.getInputStream(),
@@ -214,7 +227,9 @@ public class LanguageServerWrapper {
 						consumer.consume(message);
 						logMessage(message);
 						URI root = initParams.getRootUri() != null ? URI.create(initParams.getRootUri()) : null;
-						this.lspStreamProvider.handleMessage(message, this.languageServer, root);
+						if (this.lspStreamProvider != null) {
+							this.lspStreamProvider.handleMessage(message, this.languageServer, root);
+						}
 					}));
 
 			this.languageServer = launcher.getRemoteProxy();
@@ -284,7 +299,8 @@ public class LanguageServerWrapper {
 			initParams.setInitializationOptions(this.lspStreamProvider.getInitializationOptions(rootURI));
 			initParams.setTrace(this.lspStreamProvider.getTrace(rootURI));
 
-			// no then...Async future here as we want this chain of operation to be sequential and
+			// no then...Async future here as we want this chain of operation to be
+			// sequential and
 			// "atomic"-ish
 			initializeFuture = languageServer.initialize(initParams).thenAccept(res -> {
 				serverCapabilities = res.getCapabilities();
