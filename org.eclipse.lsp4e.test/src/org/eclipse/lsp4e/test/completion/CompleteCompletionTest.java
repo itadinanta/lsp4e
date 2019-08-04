@@ -80,9 +80,9 @@ public class CompleteCompletionTest extends AbstractCompletionTest {
 
 		LanguageServerDefinition serverDefinition = LanguageServersRegistry.getInstance().getDefinition("org.eclipse.lsp4e.test.server");
 		assertNotNull(serverDefinition);
-		LanguageServerWrapper lsWrapperForConnection = LanguageServiceAccessor
-				.getLSWrapperForConnection(testFile.getProject(), serverDefinition);
 		IPath fileLocation = testFile.getLocation();
+		LanguageServerWrapper lsWrapperForConnection = LanguageServiceAccessor
+				.getLSWrapperForConnection(testFile.getProject(), serverDefinition, fileLocation);
 		// force connection (that's what LSP4E should be designed to prevent 3rd party from having to use it).
 		lsWrapperForConnection.connect(testFile, null);
 
